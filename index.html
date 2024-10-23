@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebR Calculation Example</title>
+    <script src="https://webr.r-wasm.org/latest/webr.mjs" type="module"></script>
+    <style>
+        table {
+            width: 50%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h2 style="text-align: center;">WebR Calculation Example</h2>
+    <div style="text-align: center;">
+        <button id="calculateButton">Calculate in R</button>
+        <button id="downloadButton" style="margin-left: 10px;">Download CSV</button>
+    </div>
+    <div id="result" style="margin-top: 20px; text-align: center;"></div>
+
+    <script type="module">
+        import { WebR } from "https://webr.r-wasm.org/latest/webr.mjs";
+
+        // Create an instance of WebR
+        const webr = new WebR();
+
+        document.getElementById("calculateButton").addEventListener("click", calculateInR);
+        document.getElementById("downloadButton").addEventListener("click", downloadCSV);
+
+        let htmlString;
+
+        async function calculateInR() {
+            try {
+                await webr.init();
+                
+                await webr.installPackages(['knitr','data.table'])
+
+                // Run R code to create a data frame and convert it to HTML
+                const result = await webr.evalR(`
+                    library(data.table)
+                    url <- paste0("https://corsproxy.io/?",
+                                  "https://ec.europa.eu/eurostat/api/",
+                                  "dissemination/sdmx/2.1/data/nasa_10_nf_tr/",
+                                  "A.CP_MEUR.PAID+RECV.B1GQ+B6G.S1+S14_S15+S13.EU27_2020/",
+                                  "?format=TSV&compressed=false&startPeriod=2021&endPeriod=2023")
+                    dta <- fread(url, sep="\t")
+                    dta <- cbind(setDT(tstrsplit(dta[, V1], split=",")),
+                                 copy(dta)[, V1 := NULL])
+                    dta <- setnames(dta, seq_along(colnames(dta)),
+                                    as.character(dta[1,]))
+                    dta <- setnames(dta, colnames(dta),
+                                    sub("\\\\TIME_PERIOD","",colnames(dta),fixed=TRUE))
+                    dta <- dta[-1,]
+                    dta <- dta[, "Total 2021-2023" := get("2021") + get("2022") + get("2023")]
+                    toString(knitr::kable(dta, format="html"))
+                `);
+
+                // Get the HTML string from R
+                htmlString = (await result.toJs()).values[0];
+
+                // Display the HTML string in the result div
+                const resultDiv = document.getElementById("result");
+                resultDiv.innerHTML = htmlString;
+            } catch (error) {
+                console.error("Error in R calculation:", error);
+                const resultDiv = document.getElementById("result");
+                resultDiv.innerHTML = "<p style='color: red;'>An error occurred while calculating. Please check the console for details.</p>";
+            }
+        }
+
+        function downloadCSV() {
+            if (htmlString) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlString, 'text/html');
+                const table = doc.querySelector('table');
+                if (table) {
+                    let csv = '';
+                    const rows = table.querySelectorAll('tr');
+                    rows.forEach(row => {
+                        const cols = row.querySelectorAll('th, td');
+                        const rowData = Array.from(cols).map(col => col.innerText).join(',');
+                        csv += rowData + '\n';
+                    });
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'data.csv';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } else {
+                    alert("No table found to download.");
+                }
+            } else {
+                alert("Please calculate the data first before downloading.");
+            }
+        }
+    </script>
+</body>
+</html>
