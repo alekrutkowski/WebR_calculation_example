@@ -18,14 +18,33 @@
             padding: 10px;
             text-align: center;
         }
+        #spinner {
+            display: none;
+            margin: 20px auto;
+            border: 16px solid #f3f3f3;
+            border-top: 16px solid #3498db;
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+        }
+        #downloadButton {
+            display: none;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <h2 style="text-align: center;">WebR Calculation Example</h2>
     <div style="text-align: center;">
         <button id="calculateButton">Calculate in R</button>
-        <button id="downloadButton" style="margin-left: 10px;">Download CSV</button>
+        <button id="downloadButton">Download CSV</button>
     </div>
+    <div id="spinner"></div>
     <div id="result" style="margin-top: 20px; text-align: center;"></div>
 
     <script type="module">
@@ -41,6 +60,10 @@
 
         async function calculateInR() {
             try {
+                // Show the spinner
+                const spinner = document.getElementById("spinner");
+                spinner.style.display = "block";
+
                 await webr.init();
                 
                 await webr.installPackages(['knitr','data.table'])
@@ -71,10 +94,18 @@
                 // Display the HTML string in the result div
                 const resultDiv = document.getElementById("result");
                 resultDiv.innerHTML = htmlString;
+
+                // Show the download button
+                const downloadButton = document.getElementById("downloadButton");
+                downloadButton.style.display = "inline-block";
             } catch (error) {
                 console.error("Error in R calculation:", error);
                 const resultDiv = document.getElementById("result");
                 resultDiv.innerHTML = "<p style='color: red;'>An error occurred while calculating. Please check the console for details.</p>";
+            } finally {
+                // Hide the spinner
+                const spinner = document.getElementById("spinner");
+                spinner.style.display = "none";
             }
         }
 
